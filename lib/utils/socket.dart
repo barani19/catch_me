@@ -5,9 +5,9 @@ class SocketClient {
   static SocketClient? _instance;
 
   SocketClient._internal() {
-    socket = IO.io('http://192.168.207.54:2000', <String, dynamic>{
+    socket = IO.io('https://catchmeserver-production.up.railway.app/', <String, dynamic>{
       'transports': ['websocket'],
-      'autoConnect': false,
+      'autoConnect': true,
     });
     // Handle successful connection
     socket!.onConnect((_) {

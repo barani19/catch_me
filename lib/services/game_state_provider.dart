@@ -8,6 +8,16 @@ class GameStateProvider extends ChangeNotifier {
 
   Map<String, dynamic> get gameState => _gameState.toJson();
 
+  bool _mounted = true;
+
+  @override
+  void dispose() {
+    _mounted = false;
+    super.dispose();
+  }
+
+  bool get isMounted => _mounted;
+
   void updateGame({
     required id,
     required players,
@@ -15,6 +25,7 @@ class GameStateProvider extends ChangeNotifier {
     required isOver,
      winner = 'rat'
   }) {
+    if (!_mounted) return; // Prevent updating after disposal
     print("Updating Game State:");
     print(
         "ID: $id, Players: $players, isJoin: $isJoin, isOver: $isOver");

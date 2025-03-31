@@ -44,15 +44,6 @@ class SocketMethods {
         Navigator.pushNamed(context, '/game-screen');
         _isPlaying = true;
       }
-      // if (data['isOver']) {
-      //   gameStateProvider.updateGame(
-      //   id: data['_id'],
-      //   players: data['players'],
-      //   isJoin: data['isJoin'],
-      //   isOver: data['isOver'],
-      //   winner: 'cat'
-      // );
-      // }
     });
   }
 
@@ -62,7 +53,12 @@ class SocketMethods {
       final gameState = Provider.of<GameStateProvider>(
         context,
         listen: false,
-      ).updateGame(
+      );
+       if (!gameState.hasListeners) {
+      debugPrint("GameStateProvider is disposed, skipping update.");
+      return;
+    }
+      gameState.updateGame(
         id: data['_id'],
         players: data['players'],
         isJoin: data['isJoin'],
@@ -100,12 +96,6 @@ class SocketMethods {
 
   gameOver(BuildContext context, gameId) {
     _socketClient.emit('game-over', {'gameId': gameId});
-
-    // print(winner);
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(builder: (_) => EndScreen(winner: winner)),
-    // );
   }
 
   gameFinishedListener(BuildContext context) {

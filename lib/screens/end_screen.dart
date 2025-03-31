@@ -1,4 +1,5 @@
 import 'package:catch_me/screens/home.dart';
+import 'package:catch_me/services/clientstate.dart';
 import 'package:catch_me/services/game_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ class EndScreen extends StatefulWidget {
 }
 
 class _EndScreenState extends State<EndScreen> {
+  String winner = "";
 
   bool _isNavigating = false;
 
@@ -29,6 +31,8 @@ class _EndScreenState extends State<EndScreen> {
         MaterialPageRoute(builder: (_) => const HomeScreen()),
         (route) => false,
       );
+      Provider.of<GameStateProvider>(context).resetGameState();
+      Provider.of<ClientstateProvider>(context).resetClientState();
     } catch (e) {
       debugPrint('Navigation error: $e');
       if (mounted) {
@@ -38,8 +42,14 @@ class _EndScreenState extends State<EndScreen> {
   }
 
   @override
+     void initState(){
+        super.initState();
+        winner = Provider.of<GameStateProvider>(context,listen: false).gameState['winner'];
+     }
+
+  @override
   Widget build(BuildContext context) {
-      String winner = Provider.of<GameStateProvider>(context).gameState['winner'];
+    
     return Scaffold(
       body: Stack(
         children: [

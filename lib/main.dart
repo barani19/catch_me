@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
           textTheme: TextTheme(
             bodyLarge: TextStyle(
               fontWeight: FontWeight.w900,
-              fontSize: 25,
+              fontSize: 20,
               color: Colors.white,
             ), // Default text style for large text
           ),
