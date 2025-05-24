@@ -1,6 +1,7 @@
 import 'package:catch_me/screens/home.dart';
 import 'package:catch_me/services/clientstate.dart';
 import 'package:catch_me/services/game_state_provider.dart';
+import 'package:catch_me/utils/socket_methods.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -13,43 +14,47 @@ class EndScreen extends StatefulWidget {
 
 class _EndScreenState extends State<EndScreen> {
   String winner = "";
-
   bool _isNavigating = false;
 
-  Future<void> _navigateToHome() async {
-    if (_isNavigating || !mounted) return;
-    _isNavigating = true;
-
-    try {
-      // Wait for current frame to complete
-      await Future.delayed(Duration.zero);
-
-      if (!mounted) return;
-
-      // Use root navigator to completely clear the stack
-      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-        (route) => false,
-      );
-      Provider.of<GameStateProvider>(context).resetGameState();
-      Provider.of<ClientstateProvider>(context).resetClientState();
-    } catch (e) {
-      debugPrint('Navigation error: $e');
-      if (mounted) {
-        setState(() => _isNavigating = false);
-      }
-    }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final gameStateProvider = Provider.of<GameStateProvider>(
+      context,
+      listen: false,
+    );
+    winner = gameStateProvider.gameState['winner'];
   }
 
-  @override
-     void initState(){
-        super.initState();
-        winner = Provider.of<GameStateProvider>(context,listen: false).gameState['winner'];
-     }
+  Future<void> _navigateToHome() async {
+  if (_isNavigating || !mounted) return;
+  _isNavigating = true;
+
+  try {
+    // Clear socket listeners
+    SocketMethods().clearAllListeners();
+
+    // Reset states
+    Provider.of<GameStateProvider>(context, listen: false).resetGameState();
+    Provider.of<ClientstateProvider>(context, listen: false).resetClientState();
+
+    if (!mounted) return;
+
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      (route) => false,
+    );
+  } catch (e) {
+    debugPrint('Navigation error: $e');
+    if (mounted) {
+      setState(() => _isNavigating = false);
+    }
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
-    
     return Scaffold(
       body: Stack(
         children: [

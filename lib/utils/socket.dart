@@ -5,7 +5,7 @@ class SocketClient {
   static SocketClient? _instance;
 
   SocketClient._internal() {
-    socket = IO.io('https://catchmeserver-production.up.railway.app/', <String, dynamic>{
+    socket = IO.io('https://catch-me-server.onrender.com', <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': true,
     });

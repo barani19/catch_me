@@ -10,6 +10,7 @@ class SocketMethods {
   bool _isPlaying = false;
 
   createGame(String name, BuildContext context) {
+    if (_isPlaying) return;
     if (name.isNotEmpty) {
       _socketClient.emit('create-game', {'NickName': name});
     } else {
@@ -54,6 +55,7 @@ class SocketMethods {
         context,
         listen: false,
       );
+       // ignore: invalid_use_of_protected_member
        if (!gameState.hasListeners) {
       debugPrint("GameStateProvider is disposed, skipping update.");
       return;
@@ -99,15 +101,41 @@ class SocketMethods {
   }
 
   gameFinishedListener(BuildContext context) {
-    _socketClient.on("done", (data) {
-      _socketClient.off('timer'); // Remove listener to stop receiving updates
-      _socketClient.off(
-        'updateGame',
-      ); // Also remove updateGame listener if necessary
-      Provider.of<ClientstateProvider>(
-        context,
-        listen: false,
-      ).resetClientState();
-    });
-  }
+  _socketClient.on("done", (data) {
+    _socketClient.off('timer');
+    _socketClient.off('updateGame');
+
+    // ✅ Reset timer state
+    Provider.of<ClientstateProvider>(
+      context,
+      listen: false,
+    ).resetClientState();
+
+    // ✅ Mark game as over
+    final gameStateProvider = Provider.of<GameStateProvider>(
+      context,
+      listen: false,
+    );
+
+    gameStateProvider.updateGame(
+      id: gameStateProvider.gameState['id'],
+      players: gameStateProvider.gameState['players'],
+      isJoin: gameStateProvider.gameState['isJoin'],
+      isOver: true,
+    );
+
+    // ✅ Reset _isPlaying flag so a new game can be started
+    _isPlaying = false;
+  });
+}
+
+void clearAllListeners() {
+  _socketClient.off('updateGame');
+  _socketClient.off('room-full');
+  _socketClient.off('timer');
+  _socketClient.off('done');
+  // Add more as needed (e.g., player-move, player-disconnect, etc.)
+}
+
+
 }

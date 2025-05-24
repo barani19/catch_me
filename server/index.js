@@ -230,7 +230,7 @@ function calculateTime(time) {
 }
 
 // CREATE PORT & START SERVER
-const port = process.env.X_ZOHO_CATALYST_LISTEN_PORT || 2000;
+const port = 3000;
 server.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 Server running on http://192.168.102.54:${port}`);
+  console.log(`🚀 Server running on http://192.168.81.54:${port}`);
 });
