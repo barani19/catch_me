@@ -174,45 +174,63 @@ io.on('connection', (socket) => {
   };
 
   socket.on('move', async ({ playerId, gameId, row, col }) => {
-    try {
-      let game = await Game.findById(gameId);
-      if (!game) {
-        socket.emit('error', 'Game not found.');
+  try {
+    let game = await Game.findById(gameId);
+    if (!game) return socket.emit('error', 'Game not found.');
+
+    let player = game.players.id(playerId);
+    if (!player) return socket.emit('error', 'Player not found.');
+
+    // Update position
+    player.currRow = row;
+    player.currCol = col;
+
+    await game.save();
+
+    // Check win condition (cat catches mouse)
+    const players = game.players;
+    if (players.length === 2) {
+      const cat = players.find(p => p.isPartyLeader);
+      const mouse = players.find(p => !p.isPartyLeader);
+
+      if (cat.currRow === mouse.currRow && cat.currCol === mouse.currCol) {
+        await endGame(gameId, cat.NickName); // Stop game and announce winner
         return;
       }
-
-      let player = game.players.id(playerId);
-      if (!player) {
-        socket.emit('error', 'Player not found in the game.');
-        return;
-      }
-
-      // Update player position
-      player.currRow = row;
-      player.currCol = col;
-      console.log(row);
-      console.log(col);
-      game = await game.save();
-      io.to(gameId).emit('updateGame', game);
-    } catch (e) {
-      console.log('Error in move event:', e);
-      socket.emit('error', 'An error occurred while moving.');
     }
+
+    io.to(gameId).emit('updateGame', game);
+  } catch (e) {
+    console.log('Error in move:', e);
+    socket.emit('error', 'Error while moving.');
+  }
+});
+
+const endGame = async (gameId, winner = null) => {
+  if (activeTimers.has(gameId)) {
+    clearInterval(activeTimers.get(gameId));
+    activeTimers.delete(gameId);
+  }
+
+  let game = await Game.findById(gameId);
+  if (!game) return;
+
+  game.isOver = true;
+  await game.save();
+
+  io.to(gameId).emit('done'); // Notify clients to reset UI
+  io.to(gameId).emit('updateGame', {
+    ...game.toObject(),
+    winner: winner,
   });
+};
+
 
   // Stop timer when the game ends
   socket.on('game-over', async ({ gameId, winner }) => {
-    if (activeTimers.has(gameId)) {
-      clearInterval(activeTimers.get(gameId));
-      activeTimers.delete(gameId);
-    }
+  await endGame(gameId, winner);
+});
 
-    var game = await Game.findById(gameId);
-    game.isOver = true;
-    game = await game.save();
-    socket.emit('done');
-    io.to(gameId).emit('updateGame', { game, winner });
-  });
 
 
 
