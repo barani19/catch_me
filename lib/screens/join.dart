@@ -12,34 +12,29 @@ class JoinScreen extends StatefulWidget {
 }
 
 class _JoinScreenState extends State<JoinScreen> {
-  final TextEditingController _controller = TextEditingController();
-  final TextEditingController _gameIdcontroller = TextEditingController();
+  final TextEditingController _nicknameController = TextEditingController();
+  final TextEditingController _gameIdController = TextEditingController();
 
-  final SocketMethods _socketMethods = SocketMethods();
-
-  @override
-  void initState() {
-    // TODO: implement initState
-    super.initState();
-    _socketMethods.RoomFull(context);
-  }
+  final SocketMethods _socketMethods = SocketMethods.instance;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+
     final gameStateProvider = Provider.of<GameStateProvider>(
       context,
       listen: false,
     );
 
-    // ✅ Pass the provider instance instead of calling Provider.of in the method
-    _socketMethods.updateGameListener(context, gameStateProvider);
+    // Use the new initializeListeners method that sets up all listeners at once
+    _socketMethods.initializeListeners(context, gameStateProvider);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _gameIdcontroller.dispose();
+    _nicknameController.dispose();
+    _gameIdController.dispose();
+    _socketMethods.clearAllListeners(); // Clear socket listeners to avoid leaks
     super.dispose();
   }
 
@@ -55,58 +50,45 @@ class _JoinScreenState extends State<JoinScreen> {
             ),
           ),
           SingleChildScrollView(
-            scrollDirection: Axis.vertical,
             child: Center(
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 600),
+                constraints: const BoxConstraints(maxWidth: 600),
                 child: Container(
                   height: MediaQuery.of(context).size.height,
-                  margin: EdgeInsets.symmetric(horizontal: 20),
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Image.asset('assets/images/join_rat.png'),
-                      SizedBox(height: 25),
+                      const SizedBox(height: 25),
                       Text(
                         "Join Room",
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                       CustomTextfield(
-                        textcontroller: _controller,
-                        hint: "Enter ur nickname",
+                        textcontroller: _nicknameController,
+                        hint: "Enter your nickname",
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                       CustomTextfield(
-                        textcontroller: _gameIdcontroller,
-                        hint: "Enter ur GameId",
+                        textcontroller: _gameIdController,
+                        hint: "Enter Room ID",
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                       GestureDetector(
                         onTap: () {
-                          _socketMethods.JoinGame(
-                            _controller.text,
-                            _gameIdcontroller.text,
-                            context,
-                          );
+                          final nickname = _nicknameController.text.trim();
+                          final gameId = _gameIdController.text.trim();
+
+                          _socketMethods.joinGame(nickname, gameId, context);
                         },
                         child: Image.asset(
-                          'assets/images/join.png', // Use your join button image
-                          width: 300, // Adjust as needed
+                          'assets/images/join.png',
+                          width: 300,
                           fit: BoxFit.contain,
                         ),
                       ),
-                      // MyButton(
-                      //   value: "Join",
-                      //   onTap: () {
-                      //     _socketMethods.JoinGame(
-                      //       _controller.text,
-                      //       _gameIdcontroller.text,
-                      //       context,
-                      //     );
-                      //   },
-                      // ),
                     ],
                   ),
                 ),

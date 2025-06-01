@@ -1,39 +1,29 @@
 import 'package:catch_me/services/clientstate.dart';
-import 'package:provider/provider.dart';
 import 'package:catch_me/services/game_state_provider.dart';
 import 'package:catch_me/utils/socket.dart';
 import 'package:catch_me/widgets/bottom_alert.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class SocketMethods {
+  // Singleton Implementation
+  SocketMethods._internal();
+  static final SocketMethods _instance = SocketMethods._internal();
+  static SocketMethods get instance => _instance;
+
   final _socketClient = SocketClient.instance.socket!;
   bool _isPlaying = false;
 
-  createGame(String name, BuildContext context) {
-    if (_isPlaying) return;
-    if (name.isNotEmpty) {
-      _socketClient.emit('create-game', {'NickName': name});
-    } else {
-      BottomAlert(context, 'Please enter the user name');
-    }
-  }
+  // ------------------------
+  // Setup socket event listeners
+  // ------------------------
+  void initializeListeners(BuildContext context, GameStateProvider gameStateProvider) {
+    // Clear previous listeners before adding new ones to avoid duplicates
+    clearAllListeners();
 
-  JoinGame(String NickName, String GameId, BuildContext context) {
-    if (NickName.isNotEmpty && GameId.isNotEmpty) {
-      _socketClient.emit('join-game', {'NickName': NickName, 'gameId': GameId});
-    } else {
-      BottomAlert(context, "Please enter the valid room Id!!!");
-    }
-  }
-
-  updateGameListener(
-    BuildContext context,
-    GameStateProvider gameStateProvider,
-  ) {
     _socketClient.on('updateGame', (data) {
-      print(data);
+      debugPrint('updateGame: $data');
 
-      // ✅ Use the provided GameStateProvider instead of looking it up
       gameStateProvider.updateGame(
         id: data['_id'],
         players: data['players'],
@@ -41,53 +31,104 @@ class SocketMethods {
         isOver: data['isOver'],
       );
 
-      if (data['_id'].isNotEmpty && !_isPlaying) {
+      final String gameId = (data['_id'] ?? '').toString();
+
+      if (gameId.isNotEmpty && !_isPlaying) {
         Navigator.pushNamed(context, '/game-screen');
         _isPlaying = true;
       }
     });
-  }
 
-  updateGame(BuildContext context) {
-    _socketClient.on('updateGame', (data) {
-      print(data);
-      final gameState = Provider.of<GameStateProvider>(
+    _socketClient.on('room-full', (data) {
+      BottomAlert(context, data?.toString() ?? 'Room full');
+    });
+
+    _socketClient.on('timer', (data) {
+      final clientStateProvider = Provider.of<ClientstateProvider>(
         context,
         listen: false,
       );
-       // ignore: invalid_use_of_protected_member
-       if (!gameState.hasListeners) {
-      debugPrint("GameStateProvider is disposed, skipping update.");
-      return;
-    }
-      gameState.updateGame(
-        id: data['_id'],
-        players: data['players'],
-        isJoin: data['isJoin'],
-        isOver: data['isOver'],
+      clientStateProvider.setClientState(data);
+    });
+
+    _socketClient.on("done", (data) {
+      debugPrint('Game done: $data');
+
+      // Remove listeners to prevent duplicate firing
+      clearAllListeners();
+
+      Provider.of<ClientstateProvider>(
+        context,
+        listen: false,
+      ).resetClientState();
+
+      final gameStateProvider = Provider.of<GameStateProvider>(
+        context,
+        listen: false,
       );
+
+      gameStateProvider.updateGame(
+        id: gameStateProvider.gameState['id'],
+        players: gameStateProvider.gameState['players'],
+        isJoin: gameStateProvider.gameState['isJoin'],
+        isOver: true,
+      );
+
+      _isPlaying = false;
     });
   }
 
-  RoomFull(BuildContext context) {
-    _socketClient.on('room-full', (data) => {BottomAlert(context, data)});
+  // ------------------------
+  // Clear all socket listeners
+  // ------------------------
+  void clearAllListeners() {
+    _socketClient.off('updateGame');
+    _socketClient.off('room-full');
+    _socketClient.off('timer');
+    _socketClient.off('done');
   }
 
-  startTimer(playerId, gameId) {
-    _socketClient.emit('timer', {'playerId': playerId, 'gameId': gameId});
+  // ------------------------
+  // Reset the _isPlaying flag manually if needed
+  // ------------------------
+  void resetPlayingFlag() {
+    _isPlaying = false;
   }
 
-  updateTimer(BuildContext context) {
-    final clientstateProvider = Provider.of<ClientstateProvider>(
-      context,
-      listen: false,
-    );
-    _socketClient.on('timer', (data) {
-      clientstateProvider.setClientState(data);
+  // ------------------------
+  // Other socket emit methods unchanged
+  // ------------------------
+
+  void createGame(String name, BuildContext context) {
+    if (_isPlaying) return;
+    if (name.trim().isNotEmpty) {
+      resetPlayingFlag(); // Reset before starting new game
+      _socketClient.emit('create-game', {'NickName': name.trim()});
+    } else {
+      BottomAlert(context, 'Please enter the user name');
+    }
+  }
+
+  void joinGame(String nickName, String gameId, BuildContext context) {
+    if (nickName.trim().isNotEmpty && gameId.trim().isNotEmpty) {
+      resetPlayingFlag(); // Reset before joining new game
+      _socketClient.emit('join-game', {
+        'NickName': nickName.trim(),
+        'gameId': gameId.trim(),
+      });
+    } else {
+      BottomAlert(context, "Please enter the valid room ID!");
+    }
+  }
+
+  void startTimer(String playerId, String gameId) {
+    _socketClient.emit('timer', {
+      'playerId': playerId,
+      'gameId': gameId,
     });
   }
 
-  updatePos(playerId, gameId, row, col) {
+  void updatePos(String playerId, String gameId, int row, int col) {
     _socketClient.emit('move', {
       'playerId': playerId,
       'gameId': gameId,
@@ -96,46 +137,7 @@ class SocketMethods {
     });
   }
 
-  gameOver(BuildContext context, gameId) {
+  void gameOver(String gameId) {
     _socketClient.emit('game-over', {'gameId': gameId});
   }
-
-  gameFinishedListener(BuildContext context) {
-  _socketClient.on("done", (data) {
-    _socketClient.off('timer');
-    _socketClient.off('updateGame');
-
-    // ✅ Reset timer state
-    Provider.of<ClientstateProvider>(
-      context,
-      listen: false,
-    ).resetClientState();
-
-    // ✅ Mark game as over
-    final gameStateProvider = Provider.of<GameStateProvider>(
-      context,
-      listen: false,
-    );
-
-    gameStateProvider.updateGame(
-      id: gameStateProvider.gameState['id'],
-      players: gameStateProvider.gameState['players'],
-      isJoin: gameStateProvider.gameState['isJoin'],
-      isOver: true,
-    );
-
-    // ✅ Reset _isPlaying flag so a new game can be started
-    _isPlaying = false;
-  });
-}
-
-void clearAllListeners() {
-  _socketClient.off('updateGame');
-  _socketClient.off('room-full');
-  _socketClient.off('timer');
-  _socketClient.off('done');
-  // Add more as needed (e.g., player-move, player-disconnect, etc.)
-}
-
-
 }

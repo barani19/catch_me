@@ -23,22 +23,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
           Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: 600),
+              constraints: const BoxConstraints(maxWidth: 600),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Spacer(),
+                  const Spacer(),
                   Image.asset('assets/images/logo.png', height: 130),
-                  Spacer(),
+                  const Spacer(),
                   Image.asset('assets/images/charac_bg.png'),
-                  Spacer(),
+                  const Spacer(),
                   GestureDetector(
                     onTap: () {
                       Navigator.of(context).pushNamed('/create-game');
                     },
                     child: Image.asset(
-                      'assets/images/create.png', // Use your join button image
-                      width: 300, // Adjust as needed
+                      'assets/images/create.png',
+                      width: 300,
                       fit: BoxFit.contain,
                     ),
                   ),
@@ -47,12 +47,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.of(context).pushNamed('/join-game');
                     },
                     child: Image.asset(
-                      'assets/images/join.png', // Use your join button image
-                      width: 300, // Adjust as needed
+                      'assets/images/join.png',
+                      width: 300,
                       fit: BoxFit.contain,
                     ),
                   ),
-                  Spacer(),
+                  const Spacer(),
                 ],
               ),
             ),

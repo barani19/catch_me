@@ -24,9 +24,8 @@ class GameController extends StatefulWidget {
 class _GameControllerState extends State<GameController> {
   late int playerX;
   late int playerY;
-  final _sockmethods = SocketMethods();
+  final SocketMethods _sockmethods = SocketMethods.instance; // Singleton
 
-  // List of obstacles
   final List<List<int>> obstacles = [
     [1, 1],
     [1, 3],
@@ -45,7 +44,6 @@ class _GameControllerState extends State<GameController> {
     int newX = playerX + dx;
     int newY = playerY + dy;
 
-    // Check boundaries and if the new position is NOT an obstacle
     if (newX >= 0 &&
         newX < widget.len &&
         newY >= 0 &&
@@ -69,11 +67,6 @@ class _GameControllerState extends State<GameController> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Text(
-        //   "Player Position: ($playerX, $playerY)",
-        //   style: TextStyle(fontSize: 20),
-        // ),
-        // const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -81,9 +74,7 @@ class _GameControllerState extends State<GameController> {
               onTap: () => movePlayer(0, -1),
               child: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: Colors.yellow,
-                ),
+                decoration: const BoxDecoration(color: Colors.yellow),
                 child: const Icon(Icons.arrow_drop_up, size: 30),
               ),
             ),
@@ -96,9 +87,7 @@ class _GameControllerState extends State<GameController> {
               onTap: () => movePlayer(-1, 0),
               child: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: Colors.yellow,
-                ),
+                decoration: const BoxDecoration(color: Colors.yellow),
                 child: const Icon(Icons.arrow_left, size: 30),
               ),
             ),
@@ -107,9 +96,7 @@ class _GameControllerState extends State<GameController> {
               onTap: () => movePlayer(1, 0),
               child: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: Colors.yellow,
-                ),
+                decoration: const BoxDecoration(color: Colors.yellow),
                 child: const Icon(Icons.arrow_right, size: 30),
               ),
             ),
@@ -122,9 +109,7 @@ class _GameControllerState extends State<GameController> {
               onTap: () => movePlayer(0, 1),
               child: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: Colors.yellow,
-                ),
+                decoration: const BoxDecoration(color: Colors.yellow),
                 child: const Icon(Icons.arrow_drop_down, size: 30),
               ),
             ),

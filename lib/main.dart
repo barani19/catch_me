@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
         home: SplashScreen(),
         theme: ThemeData(
           fontFamily: 'Poppins',
-          textTheme: TextTheme(
+          textTheme: const TextTheme(
             bodyLarge: TextStyle(
               fontWeight: FontWeight.w900,
               fontSize: 20,

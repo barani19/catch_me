@@ -13,29 +13,32 @@ class CreateScreen extends StatefulWidget {
 
 class _CreateScreenState extends State<CreateScreen> {
   final TextEditingController _controller = TextEditingController();
-  final SocketMethods _methods = SocketMethods();
+  final SocketMethods _methods = SocketMethods.instance;
 
-  @override
-  void initState() {
-    // TODO: implement initState
-    super.initState();
-  }
+  bool _listenersInitialized = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final gameStateProvider = Provider.of<GameStateProvider>(
-      context,
-      listen: false,
-    );
 
-    // ✅ Pass the provider instance instead of calling Provider.of in the method
-    _methods.updateGameListener(context, gameStateProvider);
+    if (!_listenersInitialized) {
+      final gameStateProvider = Provider.of<GameStateProvider>(
+        context,
+        listen: false,
+      );
+
+      _methods.resetPlayingFlag();  // Reset flag when entering create screen
+
+      _methods.initializeListeners(context, gameStateProvider);
+
+      _listenersInitialized = true;
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _methods.clearAllListeners();
     super.dispose();
   }
 
@@ -51,45 +54,38 @@ class _CreateScreenState extends State<CreateScreen> {
             ),
           ),
           SingleChildScrollView(
-            scrollDirection: Axis.vertical,
             child: Center(
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 600),
+                constraints: const BoxConstraints(maxWidth: 600),
                 child: Container(
                   height: MediaQuery.of(context).size.height,
-                  margin: EdgeInsets.symmetric(horizontal: 20),
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Image.asset('assets/images/create_cat.png'),
-                      SizedBox(height: 25),
+                      const SizedBox(height: 25),
                       Text(
                         "Create Room",
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                       CustomTextfield(
                         textcontroller: _controller,
-                        hint: "Enter ur nickname",
+                        hint: "Enter your nickname",
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                       GestureDetector(
                         onTap: () {
-                          _methods.createGame(_controller.text, context);
+                          final nickname = _controller.text.trim();
+                          _methods.createGame(nickname, context);
                         },
                         child: Image.asset(
-                          'assets/images/create.png', // Use your join button image
-                          width: 300, // Adjust as needed
+                          'assets/images/create.png',
+                          width: 300,
                           fit: BoxFit.contain,
                         ),
                       ),
-                      // MyButton(
-                      //   value: "Create",
-                      //   onTap: () {
-                      //     _methods.createGame(_controller.text, context);
-                      //   },
-                      // ),
                     ],
                   ),
                 ),
