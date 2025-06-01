@@ -16,11 +16,9 @@ const io = socketIo(server, {
     origin: '*',
     methods: ["GET", "POST"]
   }
-})
+});
 
 const DB = 'mongodb+srv://mkbarani1234:Barani123@cluster0.ah0uc.mongodb.net/mydatabase?retryWrites=true&w=majority';
-
-
 
 const connectDB = async () => {
   try {
@@ -28,32 +26,23 @@ const connectDB = async () => {
     console.log("✅ MongoDB connected...");
   } catch (err) {
     console.error("❌ MongoDB Connection Error:", err.message);
-
     // Retry after 5 seconds
     setTimeout(connectDB, 5000);
   }
 };
 
-// // Connect to MongoDB
-// connectDB();
-
-
-
-
-// const DB = 'mongodb+srv://mkbarani1234:Barani123@cluster0.ah0uc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
-
 mongoose.connect(DB).then(() => {
   console.log('mongodb connected successfully');
 }).catch(() => {
   console.log('mongodb not connected...');
-})
+});
 
 io.on('connection', (socket) => {
-  console.log(socket.id);
+  console.log(`✅ Connected: ${socket.id}`);
 
   socket.on('create-game', async ({ NickName }) => {
     try {
-      console.log(NickName)
+      console.log('Create Game:', NickName);
       let game = new Game();
       var player = {
         NickName: NickName,
@@ -61,7 +50,7 @@ io.on('connection', (socket) => {
         currRow: 0,
         currCol: 0,
         isPartyLeader: true
-      }
+      };
       game.players.push(player);
       game = await game.save();
 
@@ -71,7 +60,7 @@ io.on('connection', (socket) => {
     } catch (e) {
       console.log(e);
     }
-  })
+  });
 
   socket.on('join-game', async ({ NickName, gameId }) => {
     try {
@@ -92,7 +81,7 @@ io.on('connection', (socket) => {
 
       // Check if joining is allowed
       if (game.isJoin && game.players.length < 2) {
-        console.log(NickName);
+        console.log('Join Game:', NickName);
 
         var player = {
           NickName: NickName,
@@ -104,7 +93,6 @@ io.on('connection', (socket) => {
 
         socket.join(gameId);
         game.players.push(player);
-
 
         game = await game.save();
 
@@ -118,11 +106,11 @@ io.on('connection', (socket) => {
     }
   });
 
-
   socket.on('timer', async ({ playerId, gameId }) => {
     let countDown = 5;
     let game = await Game.findById(gameId);
     let player = game.players.id(playerId);
+
     if (player.isPartyLeader) {
       var time = setInterval(async () => {
         if (countDown >= 0) {
@@ -130,7 +118,7 @@ io.on('connection', (socket) => {
             countDown,
             Msg: 'Game starts soon...'
           });
-          console.log(countDown);
+          console.log('Countdown:', countDown);
           countDown--;
         } else {
           game.isJoin = false;
@@ -141,14 +129,20 @@ io.on('connection', (socket) => {
         }
       }, 1000);
     }
-  })
+  });
 
   const activeTimers = new Map(); // Store active timers
 
   const startGame = async (gameId) => {
+    if (activeTimers.has(gameId)) {
+      // Prevent multiple timers for the same game
+      return;
+    }
+
     let game = await Game.findById(gameId);
     game.startTime = new Date().getTime();
     game = await game.save();
+
     var time = 120;
 
     const timer = setInterval(async () => {
@@ -158,7 +152,7 @@ io.on('connection', (socket) => {
           countDown: gameTime,
           Msg: 'Time Remaining',
         });
-        console.log(gameTime);
+        console.log('Game Timer:', gameTime);
         time--;
       } else {
         clearInterval(timer);
@@ -174,72 +168,71 @@ io.on('connection', (socket) => {
   };
 
   socket.on('move', async ({ playerId, gameId, row, col }) => {
-  try {
-    let game = await Game.findById(gameId);
-    if (!game) return socket.emit('error', 'Game not found.');
+    try {
+      let game = await Game.findById(gameId);
+      if (!game) return socket.emit('error', 'Game not found.');
 
-    let player = game.players.id(playerId);
-    if (!player) return socket.emit('error', 'Player not found.');
-
-    // Update position
-    player.currRow = row;
-    player.currCol = col;
-
-    await game.save();
-
-    // Check win condition (cat catches mouse)
-    const players = game.players;
-    if (players.length === 2) {
-      const cat = players.find(p => p.isPartyLeader);
-      const mouse = players.find(p => !p.isPartyLeader);
-
-      if (cat.currRow === mouse.currRow && cat.currCol === mouse.currCol) {
-        await endGame(gameId, cat.NickName); // Stop game and announce winner
-        return;
+      if (game.isOver) {
+        return socket.emit('error', 'Game has ended. No more moves allowed.');
       }
+
+      let player = game.players.id(playerId);
+      if (!player) return socket.emit('error', 'Player not found.');
+
+      // Update position
+      player.currRow = row;
+      player.currCol = col;
+
+      await game.save();
+
+      // Check win condition (cat catches mouse)
+      const players = game.players;
+      if (players.length === 2) {
+        const cat = players.find(p => p.isPartyLeader);
+        const mouse = players.find(p => !p.isPartyLeader);
+
+        if (cat.currRow === mouse.currRow && cat.currCol === mouse.currCol) {
+          await endGame(gameId, cat.NickName); // Stop game and announce winner
+          return;
+        }
+      }
+
+      io.to(gameId).emit('updateGame', game);
+    } catch (e) {
+      console.log('Error in move:', e);
+      socket.emit('error', 'Error while moving.');
+    }
+  });
+
+  const endGame = async (gameId, winner = null) => {
+    if (activeTimers.has(gameId)) {
+      clearInterval(activeTimers.get(gameId));
+      activeTimers.delete(gameId);
     }
 
-    io.to(gameId).emit('updateGame', game);
-  } catch (e) {
-    console.log('Error in move:', e);
-    socket.emit('error', 'Error while moving.');
-  }
-});
+    let game = await Game.findById(gameId);
+    if (!game) return;
 
-const endGame = async (gameId, winner = null) => {
-  if (activeTimers.has(gameId)) {
-    clearInterval(activeTimers.get(gameId));
-    activeTimers.delete(gameId);
-  }
+    game.isOver = true;
+    await game.save();
 
-  let game = await Game.findById(gameId);
-  if (!game) return;
-
-  game.isOver = true;
-  await game.save();
-
-  io.to(gameId).emit('done'); // Notify clients to reset UI
-  io.to(gameId).emit('updateGame', {
-    ...game.toObject(),
-    winner: winner,
-  });
-};
-
+    io.to(gameId).emit('done'); // Notify clients to reset UI
+    io.to(gameId).emit('updateGame', {
+      ...game.toObject(),
+      winner: winner,
+    });
+  };
 
   // Stop timer when the game ends
   socket.on('game-over', async ({ gameId, winner }) => {
-  await endGame(gameId, winner);
-});
-
-
-
+    await endGame(gameId, winner);
+  });
 
   socket.on("disconnect", () => {
     console.log(`❌ Disconnected: ${socket.id}`);
   });
 
 });
-
 
 function calculateTime(time) {
   var min = Math.floor(time / 60);
