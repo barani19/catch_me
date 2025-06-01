@@ -16,7 +16,7 @@ const io = socketIo(server, {
     origin: '*',
     methods: ["GET", "POST"]
   }
-});
+})
 
 const DB = 'mongodb+srv://mkbarani1234:Barani123@cluster0.ah0uc.mongodb.net/mydatabase?retryWrites=true&w=majority';
 
@@ -31,31 +31,30 @@ const connectDB = async () => {
   }
 };
 
-mongoose.connect(DB).then(() => {
-  console.log('mongodb connected successfully');
-}).catch(() => {
-  console.log('mongodb not connected...');
-});
+connectDB();
+
+const activeTimers = new Map(); // Store active timers per game
 
 io.on('connection', (socket) => {
-  console.log(`✅ Connected: ${socket.id}`);
+  console.log(`🔗 Connected: ${socket.id}`);
 
   socket.on('create-game', async ({ NickName }) => {
     try {
-      console.log('Create Game:', NickName);
+      console.log('Creating game for:', NickName);
       let game = new Game();
-      var player = {
+      const player = {
         NickName: NickName,
         socketId: socket.id,
         currRow: 0,
         currCol: 0,
         isPartyLeader: true
-      };
+      }
       game.players.push(player);
       game = await game.save();
 
-      var gameId = game._id.toString();
+      const gameId = game._id.toString();
       socket.join(gameId);
+
       io.to(gameId).emit('updateGame', game);
     } catch (e) {
       console.log(e);
@@ -64,26 +63,21 @@ io.on('connection', (socket) => {
 
   socket.on('join-game', async ({ NickName, gameId }) => {
     try {
-      // Validate game ID format
       if (!gameId.match(/^[0-9a-fA-F]{24}$/)) {
         socket.emit('not CorrectGame', "Please enter a valid game ID");
         return;
       }
 
-      // Fetch the existing game from the database
       let game = await Game.findById(gameId);
-
-      // Check if game exists
       if (!game) {
         socket.emit('not CorrectGame', "Game not found.");
         return;
       }
 
-      // Check if joining is allowed
       if (game.isJoin && game.players.length < 2) {
-        console.log('Join Game:', NickName);
+        console.log('Joining game:', NickName);
 
-        var player = {
+        const player = {
           NickName: NickName,
           socketId: socket.id,
           currRow: 4,
@@ -93,7 +87,6 @@ io.on('connection', (socket) => {
 
         socket.join(gameId);
         game.players.push(player);
-
         game = await game.save();
 
         io.to(gameId).emit('updateGame', game);
@@ -110,9 +103,8 @@ io.on('connection', (socket) => {
     let countDown = 5;
     let game = await Game.findById(gameId);
     let player = game.players.id(playerId);
-
     if (player.isPartyLeader) {
-      var time = setInterval(async () => {
+      const time = setInterval(async () => {
         if (countDown >= 0) {
           io.to(gameId).emit('timer', {
             countDown,
@@ -131,28 +123,20 @@ io.on('connection', (socket) => {
     }
   });
 
-  const activeTimers = new Map(); // Store active timers
-
   const startGame = async (gameId) => {
-    if (activeTimers.has(gameId)) {
-      // Prevent multiple timers for the same game
-      return;
-    }
-
     let game = await Game.findById(gameId);
     game.startTime = new Date().getTime();
     game = await game.save();
-
-    var time = 120;
+    let time = 120;
 
     const timer = setInterval(async () => {
       if (time >= 0) {
-        var gameTime = calculateTime(time);
+        const gameTime = calculateTime(time);
         io.to(gameId).emit('timer', {
           countDown: gameTime,
           Msg: 'Time Remaining',
         });
-        console.log('Game Timer:', gameTime);
+        console.log('Game Time:', gameTime);
         time--;
       } else {
         clearInterval(timer);
@@ -161,38 +145,36 @@ io.on('connection', (socket) => {
         game.isOver = true;
         game = await game.save();
         io.to(gameId).emit('updateGame', game);
+
+        // After game over, clean up room
+        cleanUpAfterGame(gameId);
       }
     }, 1000);
 
-    activeTimers.set(gameId, timer); // Store timer reference
+    activeTimers.set(gameId, timer);
   };
 
+  // Update player position on move
   socket.on('move', async ({ playerId, gameId, row, col }) => {
     try {
       let game = await Game.findById(gameId);
       if (!game) return socket.emit('error', 'Game not found.');
 
-      if (game.isOver) {
-        return socket.emit('error', 'Game has ended. No more moves allowed.');
-      }
-
       let player = game.players.id(playerId);
       if (!player) return socket.emit('error', 'Player not found.');
 
-      // Update position
       player.currRow = row;
       player.currCol = col;
 
       await game.save();
 
-      // Check win condition (cat catches mouse)
-      const players = game.players;
-      if (players.length === 2) {
-        const cat = players.find(p => p.isPartyLeader);
-        const mouse = players.find(p => !p.isPartyLeader);
+      // Check if cat caught the mouse
+      if (game.players.length === 2) {
+        const cat = game.players.find(p => p.isPartyLeader);
+        const mouse = game.players.find(p => !p.isPartyLeader);
 
         if (cat.currRow === mouse.currRow && cat.currCol === mouse.currCol) {
-          await endGame(gameId, cat.NickName); // Stop game and announce winner
+          await endGame(gameId, cat.NickName);
           return;
         }
       }
@@ -204,41 +186,61 @@ io.on('connection', (socket) => {
     }
   });
 
-  const endGame = async (gameId, winner = null) => {
-    if (activeTimers.has(gameId)) {
-      clearInterval(activeTimers.get(gameId));
-      activeTimers.delete(gameId);
-    }
-
-    let game = await Game.findById(gameId);
-    if (!game) return;
-
-    game.isOver = true;
-    await game.save();
-
-    io.to(gameId).emit('done'); // Notify clients to reset UI
-    io.to(gameId).emit('updateGame', {
-      ...game.toObject(),
-      winner: winner,
-    });
-  };
-
-  // Stop timer when the game ends
+  // Handle game-over event from client
   socket.on('game-over', async ({ gameId, winner }) => {
     await endGame(gameId, winner);
   });
 
+  // Handle socket disconnect
   socket.on("disconnect", () => {
     console.log(`❌ Disconnected: ${socket.id}`);
   });
-
 });
 
+// Helper: Calculate mm:ss format from seconds
 function calculateTime(time) {
-  var min = Math.floor(time / 60);
-  var sec = time % 60;
+  const min = Math.floor(time / 60);
+  const sec = time % 60;
   return `${min} : ${sec < 10 ? '0' + sec : sec}`;
 }
+
+// End game & notify players
+const endGame = async (gameId, winner = null) => {
+  if (activeTimers.has(gameId)) {
+    clearInterval(activeTimers.get(gameId));
+    activeTimers.delete(gameId);
+  }
+
+  let game = await Game.findById(gameId);
+  if (!game) return;
+
+  game.isOver = true;
+  await game.save();
+
+  io.to(gameId).emit('done'); // notify clients to reset UI
+  io.to(gameId).emit('updateGame', {
+    ...game.toObject(),
+    winner: winner,
+  });
+
+  // Clean up after game ends
+  cleanUpAfterGame(gameId);
+};
+
+// Remove all players from the room after game ends to avoid conflicts on new game
+const cleanUpAfterGame = (gameId) => {
+  const clients = io.sockets.adapter.rooms.get(gameId);
+  if (clients) {
+    for (const socketId of clients) {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) {
+        socket.leave(gameId);
+        // Optionally disconnect sockets fully:
+        // socket.disconnect(true);
+      }
+    }
+  }
+};
 
 // CREATE PORT & START SERVER
 const port = 3000;
